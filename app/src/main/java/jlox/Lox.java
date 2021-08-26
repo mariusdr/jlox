@@ -10,6 +10,9 @@ import java.util.List;
 
 public class Lox {
     static boolean hadError = false;
+    static boolean hadRuntimeError = false;
+
+    private static final Interpreter interpreter = new Interpreter(); 
 
     private static void runFile(String path) throws IOException {
         byte[] bytes = Files.readAllBytes(Paths.get(path));
@@ -18,6 +21,9 @@ public class Lox {
         // exit on error
         if (hadError) {
             System.exit(65);
+        }
+        if (hadRuntimeError) {
+            System.exit(70);
         }
     } 
 
@@ -38,9 +44,15 @@ public class Lox {
     private static void run(String source) {
         Scanner scanner = new Scanner(source);
         List<Token> tokens = scanner.scanTokens();
-        for (Token token: tokens) {
-            System.out.println(token);
+
+        Parser parser = new Parser(tokens);
+        Expr expression = parser.parse();
+
+        if (hadError) {
+            return;
         }
+
+        interpreter.interpret(expression);
     }
 
     static void error(int line, String message) {
@@ -59,6 +71,20 @@ public class Lox {
 
         System.err.println(sb.toString());
         hadError = true;
+    }
+
+    static void error(Token token, String message) {
+        if (token.type == TokenType.EOF) {
+            report(token.line, " at end", message);
+        } else {
+            String at = " at '" + token.lexeme + "'";
+            report(token.line, at, message);
+        }
+    }
+
+    static void runtimeError(RuntimeError error) {
+        System.err.println(error.getMessage() + "\n[line " + error.token.line + "]");
+        hadRuntimeError = true;
     }
 
     public static void main(String[] args) throws IOException {
