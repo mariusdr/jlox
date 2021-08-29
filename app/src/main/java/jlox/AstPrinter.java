@@ -1,5 +1,8 @@
 package jlox;
 
+import jlox.Expr.Assign;
+import jlox.Expr.Variable;
+
 public class AstPrinter implements Expr.Visitor<String> {
     String print(Expr expr) {
         return expr.accept(this);
@@ -38,6 +41,18 @@ public class AstPrinter implements Expr.Visitor<String> {
         sb.append(")");
 
         return sb.toString();
+    }
+
+    @Override
+    public String visitVariableExpr(Variable expr) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String visitAssignExpr(Assign expr) {
+        // TODO Auto-generated method stub
+        return null;
     }
 
 
