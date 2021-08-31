@@ -1,6 +1,7 @@
 package jlox;
 
 import jlox.Expr.Assign;
+import jlox.Expr.Logical;
 import jlox.Expr.Variable;
 
 public class AstPrinter implements Expr.Visitor<String> {
@@ -51,6 +52,12 @@ public class AstPrinter implements Expr.Visitor<String> {
 
     @Override
     public String visitAssignExpr(Assign expr) {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String visitLogicalExpr(Logical expr) {
         // TODO Auto-generated method stub
         return null;
     }

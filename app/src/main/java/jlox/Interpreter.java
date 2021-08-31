@@ -1,6 +1,7 @@
 package jlox;
 
 import jlox.Expr.Assign;
+import jlox.Expr.Logical;
 import jlox.Expr.Variable;
 import jlox.Stmt.Block;
 import jlox.Stmt.Class;
@@ -204,7 +205,11 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitIfStmt(If stmt) {
-        // TODO Auto-generated method stub
+        if (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.thenBranch);
+        } else if (stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
+        }
         return null;
     }
 
@@ -234,7 +239,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitWhileStmt(While stmt) {
-        // TODO Auto-generated method stub
+        while (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.body);
+        }
         return null;
     }
 
@@ -248,6 +255,23 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         Object value = evaluate(expr.value);
         environment.assign(expr.name, value);
         return value;
+    }
+
+    @Override
+    public Object visitLogicalExpr(Logical expr) {
+        Object left = evaluate(expr.left);
+        
+        if (expr.operator.type == TokenType.OR) {
+            if (isTruthy(left)) {
+                return left;
+            }
+        } else {
+            if (!isTruthy(left)) {
+                return left;
+            }
+        }
+
+        return evaluate(expr.right);
     }
 
 }
