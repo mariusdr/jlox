@@ -12,12 +12,34 @@ import jlox.Stmt.Print;
 import jlox.Stmt.Return;
 import jlox.Stmt.Var;
 import jlox.Stmt.While;
+import jlox.ReturnValue;
 
 import java.util.List;
+import java.util.ArrayList;
 
 public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
-    private Environment environment = new Environment();
+    final Environment globals = new Environment();
+    private Environment environment = globals;
+
+    Interpreter() {
+        globals.define("clock", new LoxCallable() {
+            @Override 
+            public int arity() {
+                return 0;
+            }
+
+            @Override 
+            public Object call(Interpreter interpreter, List<Object> args) {
+                return (double) System.currentTimeMillis() / 1000.0;
+            }
+
+            @Override 
+            public String toString() {
+                return "<native function>";
+            }
+        });
+    }
 
     public void interpret(List<Stmt> statements) {
         try {
@@ -198,8 +220,9 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
-    public Void visitFunctionStmt(Function stmt) {
-        // TODO Auto-generated method stub
+    public Void visitFunctionStmt(Stmt.Function stmt) {
+        LoxFunction function = new LoxFunction(stmt);
+        environment.define(stmt.name.lexeme, function);
         return null;
     }
 
@@ -221,9 +244,12 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
-    public Void visitReturnStmt(Return stmt) {
-        // TODO Auto-generated method stub
-        return null;
+    public Void visitReturnStmt(Stmt.Return stmt) {
+        Object value = null;
+        if (stmt.value != null) {
+            value = evaluate(stmt.value);
+        }
+        throw new ReturnValue(value);
     }
 
     @Override
@@ -272,6 +298,35 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         }
 
         return evaluate(expr.right);
+    }
+
+    @Override 
+    public Object visitCallExpr(Expr.Call expr) {
+        Object callee = evaluate(expr.callee);
+
+        List<Object> arguments = new ArrayList<>();
+        for (Expr arg: expr.arguments) {
+            arguments.add(evaluate(arg));
+        }
+        
+        if (!(callee instanceof LoxCallable)) {
+            throw new RuntimeError(expr.paren, "Can only call functions and classes");
+        }
+
+        LoxCallable function = (LoxCallable) callee;
+        
+        if (arguments.size() != function.arity()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Expected ");
+            sb.append(function.arity());
+            sb.append(" arguments but got ");
+            sb.append(arguments.size());
+            sb.append(".");
+
+            throw new RuntimeError(expr.paren, sb.toString());
+        }
+
+        return function.call(this, arguments);
     }
 
 }

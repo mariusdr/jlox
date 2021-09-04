@@ -1,5 +1,7 @@
 package jlox;
 
+import java.util.List;
+
 abstract class Expr {
     interface Visitor<R> {
         R visitBinaryExpr(Binary expr);
@@ -9,6 +11,7 @@ abstract class Expr {
         R visitVariableExpr(Variable expr);
         R visitAssignExpr(Assign expr);
         R visitLogicalExpr(Logical expr);
+        R visitCallExpr(Call expr);
     }
 
     static class Binary extends Expr {
@@ -112,6 +115,23 @@ abstract class Expr {
         final Expr left;
         final Token operator;
         final Expr right;
+    }
+
+    static class Call extends Expr {
+        Call(Expr callee, Token paren, List<Expr> arguments) {
+            this.callee = callee;
+            this.paren = paren;
+            this.arguments = arguments;
+        }
+
+        @Override
+        <R> R accept(Visitor<R> visitor) {
+            return visitor.visitCallExpr(this);
+        }
+
+        final Expr callee;
+        final Token paren;
+        final List<Expr> arguments;
     }
 
     abstract <R> R accept(Visitor<R> visitor);
