@@ -1,7 +1,11 @@
 package jlox;
 
 import jlox.Expr.Assign;
+import jlox.Expr.Get;
 import jlox.Expr.Logical;
+import jlox.Expr.Set;
+import jlox.Expr.Super;
+import jlox.Expr.This;
 import jlox.Expr.Variable;
 import jlox.Stmt.Block;
 import jlox.Stmt.Class;
@@ -15,6 +19,7 @@ import jlox.Stmt.While;
 import jlox.ReturnValue;
 
 import java.util.List;
+import java.security.DigestInputStream;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
@@ -213,7 +218,33 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitClassStmt(Class stmt) {
-        // TODO Auto-generated method stub
+        Object superclass = null;
+        if (stmt.superclass != null) {
+            superclass = evaluate(stmt.superclass);
+            if (!(superclass instanceof LoxClass)) {
+                throw new RuntimeError(stmt.superclass.name, "Superclass must be a class.");
+            }
+        }
+
+        environment.define(stmt.name.lexeme, null);
+
+        if (stmt.superclass != null) {
+            environment = new Environment(environment);
+            environment.define("super", superclass);
+        }
+
+        Map<String, LoxFunction> methods = new HashMap<>();
+        for (Stmt.Function method: stmt.methods) {
+            boolean isInitializer = method.name.lexeme.equals("init");
+            LoxFunction function = new LoxFunction(method, environment, isInitializer);
+            methods.put(method.name.lexeme, function);
+        }
+        LoxClass klass = new LoxClass(stmt.name.lexeme, (LoxClass) superclass, methods);
+        if (superclass != null) {
+            environment = environment.enclosing;
+        }
+
+        environment.assign(stmt.name, klass);
         return null;
     }
 
@@ -225,7 +256,7 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     @Override
     public Void visitFunctionStmt(Stmt.Function stmt) {
-        LoxFunction function = new LoxFunction(stmt, environment);
+        LoxFunction function = new LoxFunction(stmt, environment, false);
         environment.define(stmt.name.lexeme, function);
         return null;
     }
@@ -351,6 +382,49 @@ public class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
     public void resolve(Expr expression, int depth) {
         locals.put(expression, depth);
+    }
+
+    @Override
+    public Object visitGetExpr(Get expr) {
+        Object object = evaluate(expr.object);
+        if (object instanceof LoxInstance) {
+            return ((LoxInstance) object).get(expr.name);
+        }
+
+        throw new RuntimeError(expr.name, "Only instances have properties");
+    }
+
+    @Override
+    public Object visitThisExpr(This expr) {
+        return lookUpVariable(expr.keyword, expr);
+    }
+
+    @Override
+    public Object visitSuperExpr(Super expr) {
+        int distance = locals.get(expr);
+        LoxClass superclass = (LoxClass) environment.getAt(distance, "super");
+        LoxInstance object = (LoxInstance) environment.getAt(distance - 1, "this");
+        LoxFunction method = superclass.findMethod(expr.method.lexeme);
+
+        if (method == null) {
+            String msg = "Undefined property " + expr.method.lexeme + ".";
+            throw new RuntimeError(expr.method, msg);
+        }
+
+        return method.bind(object);
+    }
+
+    @Override
+    public Object visitSetExpr(Set expr) {
+        Object object = evaluate(expr.object);
+
+        if (!(object instanceof LoxInstance)) {
+            throw new RuntimeError(expr.name, "Only instances have fields.");
+        }
+
+        Object value = evaluate(expr.value);
+        ((LoxInstance) object).set(expr.name, value);
+        return value;
     }
 
 

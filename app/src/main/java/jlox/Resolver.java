@@ -5,18 +5,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Stack;
 
+import jlox.Expr.Set;
+import jlox.Expr.Super;
+import jlox.Expr.This;
 import jlox.Interpreter;
 
 public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private enum FunctionType {
         NONE, 
-        FUNCTION
+        FUNCTION,
+        INITIALIZER,
+        METHOD
+    }
+
+    private enum ClassType {
+        NONE, 
+        CLASS,
+        SUBCLASS
     }
 
     private final Interpreter interpreter;
     private final Stack<Map<String, Boolean>> scopes = new Stack<>();
 
     private FunctionType currentFunction = FunctionType.NONE;
+    private ClassType currentClass = ClassType.NONE;
 
     Resolver(Interpreter interpreter) {
         this.interpreter = interpreter;
@@ -92,6 +104,9 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
             Lox.error(stmt.keyword, "Can't return from top-level code.");
         }
         if (stmt.value != null) {
+            if (currentFunction == FunctionType.INITIALIZER) {
+                Lox.error(stmt.keyword, "Can not return a value from an initializer.");
+            }
             resolve(stmt.value);
         }
         return null;
@@ -146,6 +161,42 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     @Override 
     public Void visitClassStmt(Stmt.Class stmt) {
+        ClassType enclosingClass = currentClass;
+        currentClass = ClassType.CLASS;
+
+        declare(stmt.name);
+        define(stmt.name);
+
+        if (stmt.superclass != null && stmt.name.lexeme.equals(stmt.superclass.name.lexeme)) {
+            Lox.error(stmt.superclass.name, "A class can not inherit from itself.");
+        }
+
+        if (stmt.superclass != null) {
+            currentClass = ClassType.SUBCLASS;
+            resolve(stmt.superclass);
+        }
+
+        if (stmt.superclass != null) {
+            beginScope();
+            scopes.peek().put("super", true);
+        }
+
+        beginScope();
+        scopes.peek().put("this", true);
+
+        for (Stmt.Function method: stmt.methods) {
+            FunctionType decl = FunctionType.METHOD;
+            if (method.name.lexeme.equals("init")) {
+                decl = FunctionType.INITIALIZER;
+            }
+            resolveFunction(method, decl);
+        }
+
+        endScope();
+        if (stmt.superclass != null) {
+            endScope();
+        }
+        currentClass = enclosingClass;
         return null;
     }
 
@@ -217,5 +268,39 @@ public class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
         scope.put(name.lexeme, true);
     }
 
+    @Override 
+    public Void visitGetExpr(Expr.Get expr) {
+        resolve(expr.object);
+        return null;
+    }
 
+    @Override
+    public Void visitThisExpr(This expr) {
+        if (currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, "Can't use this outside of a class.");
+            return null;
+        }
+
+        resolveLocal(expr, expr.keyword);
+        return null;
+    }
+
+    @Override
+    public Void visitSuperExpr(Super expr) {
+        if (currentClass == ClassType.NONE) {
+            Lox.error(expr.keyword, "Can not use super outside of a class.");
+        } else if (currentClass != ClassType.SUBCLASS) {
+            Lox.error(expr.keyword, "Can not use super in a class without superclass.");
+        }
+
+        resolveLocal(expr, expr.keyword);
+        return null;
+    }
+
+    @Override
+    public Void visitSetExpr(Set expr) {
+        resolve(expr.value);
+        resolve(expr.object);
+        return null;
+    }
 }
